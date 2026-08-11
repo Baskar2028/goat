@@ -4,55 +4,46 @@ const session = require('express-session');
 const multer = require('multer');
 const path = require('path');
 const fs = require('fs');
+const os = require('os');
 const { v4: uuidv4 } = require('uuid');
-const db = require('./database');
 const { processAudio } = require('./services/audioProcessor');
 const { uploadToRoblox } = require('./services/robloxUploader');
 
 const app = express();
-const PORT = process.env.PORT || 3000;
 
 app.use(express.json());
 app.use(session({
     secret: process.env.SESSION_SECRET || 'dev-secret-2026',
     resave: false,
     saveUninitialized: true,
-    cookie: { secure: false, maxAge: 1000 * 60 * 60 * 24 * 30 } 
+    cookie: { secure: false, maxAge: 1000 * 60 * 60 * 24 } // 24 hours
 }));
 
+// Vercel routes static files automatically via vercel.json, but keep this for local testing
 app.use(express.static(path.join(__dirname, '../client')));
 
-const uploadsDir = path.join(__dirname, '../uploads');
-const tempDir = path.join(__dirname, '../temp');
-if (!fs.existsSync(uploadsDir)) fs.mkdirSync(uploadsDir);
-if (!fs.existsSync(tempDir)) fs.mkdirSync(tempDir);
+// VERCEL REQUIREMENT: Only write to the temporary /tmp directory
+const tmpDir = os.tmpdir();
 
 const storage = multer.diskStorage({
-    destination: uploadsDir,
+    destination: tmpDir,
     filename: (req, file, cb) => cb(null, `${Date.now()}_${file.originalname.replace(/[^a-zA-Z0-9.-]/g, '_')}`)
 });
 
-const fileFilter = (req, file, cb) => {
-    if (file.mimetype.startsWith('audio/') || file.originalname.match(/\.(mp3|wav|ogg|flac|m4a)$/i)) {
-        cb(null, true);
-    } else {
-        cb(new Error('Invalid file type.'));
-    }
-};
-
 const upload = multer({ 
     storage, 
-    fileFilter,
-    limits: { fileSize: (process.env.MAX_FILE_SIZE_MB || 150) * 1024 * 1024 } // Up to 150MB support
+    limits: { fileSize: (process.env.MAX_FILE_SIZE_MB || 20) * 1024 * 1024 }
 });
+
+// VERCEL REQUIREMENT: Stateless In-Memory Database (Resets when Vercel sleeps)
+const uploadsDB = []; 
 
 app.use((req, res, next) => {
     if (!req.session.userId) req.session.userId = uuidv4();
     next();
 });
 
-// --- AUTHENTICATION ROUTES ---
-
+// --- AUTHENTICATION ---
 app.get('/api/auth/status', (req, res) => {
     if (req.session.role) res.json({ authenticated: true, role: req.session.role });
     else res.json({ authenticated: false });
@@ -60,139 +51,83 @@ app.get('/api/auth/status', (req, res) => {
 
 app.post('/api/auth/team', (req, res) => {
     const { email, password } = req.body;
-    if (email === 'goatedheisen@gmail.com' && password === 'goatedheisenisalwaysgoated@') {
+    if (email === 'goatedheisen@gmail.com' && password === 'goatedheisenisalwaysgoated#') {
         req.session.role = 'team';
         return res.json({ success: true });
     }
-    res.status(401).json({ error: 'Invalid team credentials.' });
+    res.status(401).json({ error: 'Invalid credentials.' });
 });
 
-// --- API ROUTES ---
-
+// --- PROCESSING API ---
 app.post('/api/upload', upload.single('audio'), async (req, res) => {
     if (!req.file) return res.status(400).json({ error: 'No file uploaded.' });
-    if (req.session.role !== 'team') {
-        return res.status(401).json({ error: 'Unauthorized. Please login as Creator Team first.' });
-    }
+    if (req.session.role !== 'team') return res.status(401).json({ error: 'Unauthorized.' });
 
     const uploadId = uuidv4();
-    const userId = req.session.userId;
-    
-    // Grab the custom name from the frontend, fallback to original filename if missing
     const finalName = req.body.customName || req.file.originalname;
     
+    // Save to memory DB
+    const uploadRecord = {
+        id: uploadId,
+        owner_id: req.session.userId,
+        original_filename: finalName,
+        status: 'processing',
+        created_at: Date.now()
+    };
+    uploadsDB.push(uploadRecord);
+
+    // Send immediate response so Vercel doesn't block the frontend
+    res.json({ id: uploadId, status: 'processing' });
+
     const options = {
         pitchSemitones: req.body.pitchSemitones || "0",
         playbackSpeed: req.body.playbackSpeed || "1",
         format: req.body.format || "ogg",
-        bitrate: req.body.bitrate || "320k",
-        sampleRate: req.body.sampleRate || "44100",
-        channels: req.body.channels || "2",
-        normalizeLoudness: req.body.normalizeLoudness === 'true'
+        tmpDir: tmpDir // Pass the temp directory
     };
 
-    // Save it to the database with the clean name
-    db.run(
-        `INSERT INTO uploads (id, owner_id, original_filename, file_size, status) VALUES (?, ?, ?, ?, ?)`,
-        [uploadId, userId, finalName, req.file.size, 'processing']
-    );
-
-    res.json({ id: uploadId, status: 'processing' });
-
     try {
-        // Process and upload using the CLEAN name
+        // 1. Process Audio
         const processedPath = await processAudio(req.file.path, finalName, options);
-        db.run(`UPDATE uploads SET status = 'uploading' WHERE id = ?`, [uploadId]);
+        uploadRecord.status = 'uploading';
 
+        // 2. Upload to Roblox
         const credentials = {
             apiKey: process.env.ROBLOX_API_KEY,
             creatorId: process.env.ROBLOX_CREATOR_ID,
             creatorType: process.env.ROBLOX_CREATOR_TYPE || 'User'
         };
 
-        // Roblox will now receive the clean name you typed in!
         const assetId = await uploadToRoblox(processedPath, finalName, credentials);
-        const processedFilename = path.basename(processedPath);
         
-        db.run(`UPDATE uploads SET status = 'completed', asset_id = ?, processed_filename = ? WHERE id = ?`, 
-            [assetId, processedFilename, uploadId]);
+        // 3. Update Record
+        uploadRecord.status = 'completed';
+        uploadRecord.asset_id = assetId;
 
+        // 4. Vercel Memory Cleanup (Manual)
         if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
+        if (fs.existsSync(processedPath)) fs.unlinkSync(processedPath);
 
     } catch (error) {
-        console.error(`Error processing ${uploadId}:`, error);
-        db.run(`UPDATE uploads SET status = 'failed', error_message = ? WHERE id = ?`, [error.message, uploadId]);
+        uploadRecord.status = 'failed';
+        uploadRecord.error_message = error.message;
         if (fs.existsSync(req.file.path)) fs.unlinkSync(req.file.path);
     }
 });
 
-app.patch('/api/uploads/:id', (req, res) => {
-    const { newName } = req.body;
-    if (!newName || !newName.trim()) return res.status(400).json({ error: 'New name is required.' });
-
-    db.get(`SELECT owner_id FROM uploads WHERE id = ?`, [req.params.id], (err, row) => {
-        if (err || !row) return res.status(404).json({ error: 'Upload not found.' });
-        if (row.owner_id !== req.session.userId) return res.status(403).json({ error: 'Forbidden' });
-
-        db.run(`UPDATE uploads SET original_filename = ? WHERE id = ?`, [newName.trim(), req.params.id], (err) => {
-            if (err) return res.status(500).json({ error: 'Database update failed.' });
-            res.json({ success: true, newName: newName.trim() });
-        });
-    });
+// --- STATUS POLLING ---
+app.get('/api/uploads/:id', (req, res) => {
+    const record = uploadsDB.find(u => u.id === req.params.id);
+    if (!record) return res.status(404).json({ error: 'Not found' });
+    if (record.owner_id !== req.session.userId) return res.status(403).json({ error: 'Forbidden' });
+    res.json(record);
 });
 
 app.get('/api/uploads', (req, res) => {
-    db.all(`SELECT id, original_filename, status, asset_id, created_at FROM uploads WHERE owner_id = ? ORDER BY created_at DESC`, 
-    [req.session.userId], (err, rows) => {
-        if (err) return res.status(500).json({ error: 'Database error' });
-        res.json(rows);
-    });
+    const userUploads = uploadsDB
+        .filter(u => u.owner_id === req.session.userId)
+        .sort((a, b) => b.created_at - a.created_at);
+    res.json(userUploads);
 });
 
-app.get('/api/uploads/:id', (req, res) => {
-    db.get(`SELECT * FROM uploads WHERE id = ?`, [req.params.id], (err, row) => {
-        if (err || !row) return res.status(404).json({ error: 'Not found' });
-        if (row.owner_id !== req.session.userId) return res.status(403).json({ error: 'Forbidden' });
-        delete row.owner_id;
-        res.json(row);
-    });
-});
-
-app.get('/api/download/:id', (req, res) => {
-    db.get(`SELECT * FROM uploads WHERE id = ?`, [req.params.id], (err, row) => {
-        if (err || !row) return res.status(404).json({ error: 'Not found' });
-        if (row.owner_id !== req.session.userId) return res.status(403).json({ error: 'Forbidden' });
-        
-        if (!row.processed_filename) return res.status(404).json({ error: 'File not available' });
-        
-        const filePath = path.join(tempDir, row.processed_filename);
-        if (fs.existsSync(filePath)) res.download(filePath, `processed_${row.original_filename}`);
-        else res.status(404).json({ error: 'File expired or cleaned up' });
-    });
-});
-
-
-// --- AGGRESSIVE MEMORY CLEANUP (Runs every 30 seconds) ---
-setInterval(() => {
-    const folders = [uploadsDir, tempDir];
-    const now = Date.now();
-    const maxAge = 60 * 1000; // 60 seconds exactly
-
-    folders.forEach(folder => {
-        fs.readdir(folder, (err, files) => {
-            if (err) return;
-            files.forEach(file => {
-                const filePath = path.join(folder, file);
-                fs.stat(filePath, (err, stats) => {
-                    if (err) return;
-                    // If the file is older than 60 seconds, NUKE IT.
-                    if (now - stats.mtimeMs > maxAge) {
-                        fs.unlink(filePath, () => console.log(`[Memory Cleanup] Automatically deleted old file: ${file}`));
-                    }
-                });
-            });
-        });
-    });
-}, 30 * 1000); // Trigger check every 30 seconds
-
-app.listen(PORT, () => console.log(`Server running at http://localhost:${PORT}`));
+module.exports = app;
