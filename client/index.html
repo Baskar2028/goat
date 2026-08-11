@@ -1,0 +1,301 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <title>GOAT | Audio Workspace</title>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap" rel="stylesheet">
+    <link rel="stylesheet" href="css/style.css">
+</head>
+<body>
+    <div class="anamorphic-bg">
+        <div class="flare flare-1"></div>
+        <div class="flare flare-2"></div>
+        <div class="light-streak"></div>
+    </div>
+
+    <!-- Auth Gateway Modal -->
+    <div id="auth-modal" class="modal-overlay hidden">
+        <div class="modal-glow"></div>
+        <div class="modal-card cinematic-glass">
+            <div class="modal-header">
+                <svg width="36" height="36" viewBox="0 0 24 24" fill="none" stroke="var(--accent-primary)" stroke-width="1.5" style="margin-bottom: 20px; filter: drop-shadow(0 0 10px rgba(184, 167, 255, 0.5));">
+                    <path d="M12 2v20M17 5v14M7 5v14M22 9v6M2 9v6"/>
+                </svg>
+                <h2 class="modal-title">GOAT</h2>
+                <p class="modal-subtitle">SECURE AUDIO WORKSPACE</p>
+            </div>
+            
+            <div class="auth-tabs">
+                <button class="auth-tab active" data-tab="team">Creator Team</button>
+                <button class="auth-tab" style="opacity: 0.3; cursor: not-allowed;" title="Coming Soon">User Access</button>
+            </div>
+            
+            <div id="tab-team" class="auth-form active">
+                <div class="input-group">
+                    <label>TEAM EMAIL</label>
+                    <input type="email" id="team-email" placeholder="Enter authorized email" class="cinematic-input" autocomplete="off" spellcheck="false">
+                </div>
+                <div class="input-group">
+                    <label>ACCESS KEY</label>
+                    <input type="password" id="team-pass" placeholder="••••••••••••" class="cinematic-input">
+                </div>
+                <button class="btn-primary auth-submit-btn" id="btn-login-team">
+                    INITIALIZE WORKSPACE
+                    <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" style="margin-left: 8px;"><line x1="5" y1="12" x2="19" y2="12"></line><polyline points="12 5 19 12 12 19"></polyline></svg>
+                </button>
+            </div>
+
+            <div class="modal-footer">
+                <p>System v2.0.5 • Encrypted Connection</p>
+            </div>
+        </div>
+    </div>
+
+    <!-- Lua Password Modal -->
+    <div id="lua-modal" class="modal-overlay hidden" style="z-index: 2000;">
+        <div class="modal-glow"></div>
+        <div class="modal-card cinematic-glass" style="max-width: 320px; padding: 32px;">
+            <h3 class="modal-title" style="font-size: 16px; margin-bottom: 24px; text-align: center;">DOWNLOAD AUTHORIZATION</h3>
+            <input type="password" id="lua-pwd" placeholder="Enter Master Code" class="cinematic-input" style="text-align: center; letter-spacing: 4px;">
+            <div style="display: flex; gap: 12px; margin-top: 24px;">
+                <button class="btn-text" id="btn-lua-cancel" style="flex: 1;">Cancel</button>
+                <button class="btn-primary" id="btn-lua-confirm" style="flex: 1;">Unlock File</button>
+            </div>
+        </div>
+    </div>
+
+    <!-- Navigation Bar -->
+    <nav class="navbar">
+        <div class="nav-brand">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v20M17 5v14M7 5v14M22 9v6M2 9v6"/></svg>
+            <span>GOAT</span>
+        </div>
+        <div class="nav-links">
+            <a href="#" onclick="showWorkspace()" id="nav-ws" class="active">Workspace</a>
+            <a href="#" onclick="showLuaPage()" id="nav-lua">Lua Scripts</a>
+            <a href="#tools" onclick="showWorkspace()">Tools</a>
+            <a href="#history" onclick="showWorkspace()">History</a>
+            <a href="#about" onclick="showWorkspace()">About</a>
+        </div>
+    </nav>
+
+    <header class="hero" id="hero-section">
+        <div class="hero-label">AUDIO PROCESSING / ROBLOX AUDIO TOOL</div>
+        <h1 class="hero-title">Shape your sound.</h1>
+        <p class="hero-subtitle">Prepare, transform and optimize your audio with precise playback and pitch control.</p>
+        <div class="hero-actions">
+            <button class="btn-primary" onclick="document.getElementById('file-input').click()">Upload Audio</button>
+            <button class="btn-secondary" onclick="document.getElementById('tools').scrollIntoView({behavior:'smooth'})">Explore Tools</button>
+        </div>
+        <div class="hero-trust">Fast local processing • FFmpeg powered</div>
+    </header>
+
+    <main class="workspace-container">
+        <!-- Upload Zone -->
+        <div class="upload-zone" id="drop-zone">
+            <div class="upload-inner">
+                <svg width="32" height="32" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M21 15v4a2 2 0 0 1-2 2H5a2 2 0 0 1-2-2v-4"></path><polyline points="17 8 12 3 7 8"></polyline><line x1="12" y1="3" x2="12" y2="15"></line></svg>
+                <h3>DROP AUDIO</h3>
+                <p>Drag & drop your audio</p>
+                <span>MP3 / OGG / WAV / FLAC / M4A</span>
+                <input type="file" id="file-input" accept=".mp3,.wav,.ogg,.flac,.m4a" hidden>
+                <button class="btn-secondary outline" onclick="document.getElementById('file-input').click()">Choose File</button>
+            </div>
+        </div>
+
+        <!-- Processing UI -->
+        <div class="workspace-panel hidden" id="workspace-panel">
+            
+            <div class="panel-layout">
+                <!-- Left: Controls -->
+                <div class="controls-column">
+                    <div class="control-card">
+                        <label class="section-label">ROBLOX LUA METADATA</label>
+                        <div class="input-group">
+                            <label>SONG NAME</label>
+                            <input type="text" id="meta-song" placeholder="e.g. Alaakaa Loova" class="cinematic-input" style="padding: 10px;">
+                        </div>
+                        <div class="input-group">
+                            <label>MOVIE / ALBUM NAME</label>
+                            <input type="text" id="meta-movie" placeholder="e.g. OM" class="cinematic-input" style="padding: 10px;">
+                        </div>
+                        <div class="input-group">
+                            <label>LANGUAGE / CATEGORY</label>
+                            <select id="meta-lang" class="cinematic-input cinematic-select">
+                                <option value="Tamil">Tamil</option>
+                                <option value="Telugu">Telugu</option>
+                                <option value="Kannada">Kannada</option>
+                                <option value="Malayalam">Malayalam</option>
+                                <option value="Hindi">Hindi</option>
+                                <option value="English">English</option>
+                                <option value="Remix">Remix</option>
+                            </select>
+                        </div>
+                    </div>
+
+                    <div class="control-card">
+                        <div class="slider-header">
+                            <label>PITCH</label>
+                            <span class="val-badge" id="pitch-val">+0.00 semitones</span>
+                        </div>
+                        <input type="range" id="pitch-slider" class="cinematic-slider" min="-12" max="12" step="0.1" value="0">
+                        <div class="preset-row" id="pitch-presets">
+                            <button data-val="-12">-12</button><button data-val="-6">-6</button><button data-val="-3">-3</button><button data-val="0" class="active">0</button><button data-val="3">+3</button><button data-val="4">+4</button><button data-val="6">+6</button><button data-val="12">+12</button>
+                        </div>
+                    </div>
+
+                    <div class="control-card">
+                        <div class="slider-header">
+                            <label>ROBLOX PLAYBACK SPEED</label>
+                            <span class="val-badge" id="speed-val">1.000x</span>
+                        </div>
+                        <input type="range" id="speed-slider" class="cinematic-slider" min="0.25" max="2.0" step="0.001" value="1.000">
+                        <div class="preset-row" id="speed-presets">
+                            <button data-val="0.25">0.25x</button><button data-val="0.50">0.50x</button><button data-val="0.75">0.75x</button><button data-val="1.0" class="active">1.00x</button><button data-val="1.25">1.25x</button><button data-val="1.50">1.50x</button><button data-val="2.0">2.00x</button>
+                        </div>
+                    </div>
+
+                    <div class="control-card flex-row">
+                        <div class="format-settings">
+                            <label class="section-label">OUTPUT FORMAT</label>
+                            <div class="format-toggles">
+                                <label><input type="radio" name="format" value="ogg" checked> OGG</label>
+                                <label><input type="radio" name="format" value="mp3"> MP3</label>
+                            </div>
+                            
+                            <div class="advanced-formats hidden" id="mp3-options">
+                                <select id="bitrate"><option value="320k">320 kbps</option><option value="256k">256 kbps</option><option value="192k">192 kbps</option><option value="128k">128 kbps</option></select>
+                            </div>
+                            <div class="advanced-formats">
+                                <select id="sample-rate"><option value="44100">44.1 kHz</option><option value="48000">48 kHz</option></select>
+                                <select id="channels"><option value="2">Stereo</option><option value="1">Mono</option></select>
+                            </div>
+                        </div>
+                        
+                        <div class="loudness-settings">
+                            <label class="section-label">LOUDNESS</label>
+                            <div class="toggle-wrap">
+                                <span>Normalize Loudness</span>
+                                <label class="switch"><input type="checkbox" id="norm-loud" checked><span class="slider round"></span></label>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+
+                <!-- Right: Info & Preview -->
+                <div class="info-column">
+                    <div class="info-card">
+                        <div class="section-label">FILE INFO</div>
+                        <div class="info-grid">
+                            <span>Filename</span> <strong id="info-name" contenteditable="true" class="editable-name">song.mp3</strong>
+                            <span>Duration</span> <strong id="info-duration">0:00.000</strong>
+                            <span>File Size</span> <strong id="info-size">0.0 MB</strong>
+                        </div>
+                        <div class="mini-waveform">
+                            <div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div><div class="bar"></div>
+                        </div>
+                    </div>
+
+                    <div class="preview-card">
+                        <div class="section-label">CONVERSION PREVIEW</div>
+                        <div class="preview-flow">
+                            <div class="flow-item"><span>ORIGINAL</span> <strong id="prev-orig">0:00.000</strong></div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="flow-item"><span>PROCESSING</span> <strong id="prev-mult">1.000×</strong></div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="flow-item"><span>OUTPUT</span> <strong id="prev-out">0:00.000</strong></div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="flow-item"><span>ROBLOX</span> <strong id="prev-roblox">1.000×</strong></div>
+                            <div class="flow-arrow">↓</div>
+                            <div class="flow-item highlight"><span>FINAL</span> <strong id="prev-final">0:00.000</strong></div>
+                        </div>
+                    </div>
+
+                    <div class="action-card">
+                        <button class="btn-text" onclick="resetUpload()">Cancel</button>
+                        <button class="btn-primary" id="btn-process">Process Audio</button>
+                    </div>
+                </div>
+            </div>
+        </div>
+
+        <!-- Animation / Status Screen -->
+        <div class="status-panel hidden" id="status-panel">
+            <div class="status-loader">
+                <div class="loader-bar"></div>
+            </div>
+            <h3 id="status-title">ANALYZING AUDIO</h3>
+            <div class="status-steps">
+                <div class="step active" id="st-prep">Preparing waveform</div>
+                <div class="step" id="st-trans">Applying transformation</div>
+                <div class="step" id="st-enc">Encoding output</div>
+                <div class="step" id="st-fin">Finalizing & Uploading to Roblox</div>
+            </div>
+        </div>
+
+        <!-- Result Screen -->
+        <div class="result-panel hidden" id="result-panel">
+            <div class="result-icon">✓</div>
+            <h3>AUDIO READY & LUA SAVED</h3>
+            <div class="result-data">
+                <div class="asset-display">
+                    <span>Roblox Asset ID</span>
+                    <strong id="final-asset-id">123456789</strong>
+                </div>
+            </div>
+            <div class="result-actions">
+                <button class="btn-primary outline" onclick="showLuaPage()">View Lua Scripts</button>
+                <button class="btn-primary outline" id="btn-copy">Copy Asset ID</button>
+                <button class="btn-text" onclick="resetUpload()">Process Another</button>
+            </div>
+        </div>
+    </main>
+
+    <!-- Lua Scripts Page -->
+    <main class="lua-container hidden" id="lua-page">
+        <h2 class="section-title" style="margin-top: 60px;">DAILY LUA CONFIGURATIONS</h2>
+        <p style="color: var(--text-muted); font-size: 13px; margin-bottom: 32px;">Your processed songs are automatically grouped by date. Download the daily file to easily paste a complete table into your Roblox Studio scripts.</p>
+        <div class="history-list" id="lua-file-list">
+            <!-- Daily files will generate here -->
+        </div>
+    </main>
+
+    <!-- Tools Section -->
+    <section class="tools-section" id="tools">
+        <h2 class="section-title">AUDIO TOOLS</h2>
+        <div class="tools-grid">
+            <div class="tool-card active-tool">
+                <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.5"><path d="M12 2v20M17 5v14M7 5v14M22 9v6M2 9v6"/></svg>
+                <h4>Pitch & Speed Studio</h4>
+                <p>Advanced pitch shifting and playback speed targeting.</p>
+            </div>
+            <div class="tool-card coming-soon"><h4>Loudness Normalizer</h4><p>Master audio to exact LUFS targets.</p><span>Coming Soon</span></div>
+            <div class="tool-card coming-soon"><h4>Format Converter</h4><p>Batch convert MP3, OGG, FLAC, WAV.</p><span>Coming Soon</span></div>
+            <div class="tool-card coming-soon"><h4>Silence Trimmer</h4><p>Automatically remove dead air.</p><span>Coming Soon</span></div>
+        </div>
+    </section>
+
+    <!-- About Section -->
+    <section class="history-section" id="about">
+        <h2 class="section-title">THE ORIGIN</h2>
+        <div class="about-card">
+            <div class="about-content">
+                <h3>Built by GoatedHeisen</h3>
+                <p>This workspace was engineered by <strong>GoatedHeisen</strong>, the visionary developer behind hit Roblox experiences like <em>Telugu Karaoke</em> and <em>Tamil are you lonely</em>.</p>
+                <p>Curating the perfect audio atmosphere for these games was a massive undertaking. Adding songs meant preparing, pitching, correcting tempos, and uploading hundreds of tracks manually. It was a painstaking, one-man job that took countless hours and bottlenecked development.</p>
+                <p>GoatedHeisen built this tool to solve that exact problem. By mathematically automating pitch correction, tempo synchronization, and direct Roblox Open Cloud uploads, this tool ensures developers can focus on building incredible games instead of battling audio limitations. Built by a creator, for creators.</p>
+            </div>
+        </div>
+    </section>
+
+    <!-- History Section -->
+    <section class="history-section" id="history">
+        <h2 class="section-title">YOUR HISTORY</h2>
+        <div class="history-list" id="history-list"></div>
+    </section>
+
+    <div id="toast-container"></div>
+    <script src="js/app.js"></script>
+</body>
+</html>
